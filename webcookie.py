@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import urllib3
 from pprint import pprint
 
@@ -7,10 +8,24 @@ import requests
 from bs4 import BeautifulSoup
 
 SAML_HOST = os.environ['SAML_HOST']
+if not SAML_HOST:
+    print("Missing SAML_HOST")
+
 FS_AUTH_HOST = os.environ['FS_AUTH_HOST']
+if not FS_AUTH_HOST:
+    print("Missing FS_AUTH_HOST")
+
 VPN_HOST = os.environ['VPN_HOST']
-USERNAME = os.environ['VPN_USERNAME']
-PASSWORD = os.environ['VPN_PASSWORD']
+if not VPN_HOST:
+    print("Missing VPN_HOST")
+
+VPN_USERNAME = os.environ['VPN_USERNAME']
+if not VPN_USERNAME:
+    print("Missing VPN_USERNAME")
+
+VPN_PASSWORD = os.environ['VPN_PASSWORD']
+if not VPN_PASSWORD:
+    print("Missing VPN_PASSWORD")
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -62,20 +77,75 @@ login_url = login_form.attrs['action']
 r = s.post(
     'https://{}{}'.format(FS_AUTH_HOST, login_url),
     data={
-        'UserName': '{}'.format(USERNAME),
-        'Password': '{}'.format(PASSWORD),
+        'UserName': '{}'.format(VPN_USERNAME),
+        'Password': '{}'.format(VPN_PASSWORD),
     },
 )
-soup = BeautifulSoup(r.text, 'html.parser')
-vpn_form = soup.find("form") # name='hiddenform'
-vpn_url = vpn_form.attrs['action']
-if 'https' not in vpn_url:
-    error_message = "\<n".join(soup.find('span', {'id': 'errorText'}).contents)
-    if error_message:
-        print(error_message)
+
+while True:
+    soup = BeautifulSoup(r.text, 'html.parser')
+    error_field = soup.find('label', {'id': 'errorText'}) or soup.find('span', {'id': 'errorText'})
+    if error_field and error_field.text:
+        print(error_field.text)
+        print("=" * 80)
+        sys.exit(1)
+
+    if not 'Multi-Factor Authentication' in soup.title:
+        break
+
+    mfa_form = soup.find('form', {'id': 'loginForm'})
+    mfa_url = login_url
+    context = mfa_form.find('input', {'id': 'context'}).attrs['value']
+    code_input = soup.find('input', {'id': 'verificationCodeInput'})
+    if not code_input:
+        print("Waiting for 2FA code prompt...")
+        time.sleep(1)
+        r = s.post(
+            'https://{}{}'.format(FS_AUTH_HOST, mfa_url),
+            data={
+                'AuthMethod': 'AzureMfaAuthentication',
+                'Context': '{}'.format(context),
+                '__EVENTTARGET': '',
+            },
+            verify=False,
+            allow_redirects=False,
+        )
+        continue
+
+    verification_code = input("Verification code: ")
+
+    r = s.post(
+        'https://{}{}'.format(FS_AUTH_HOST, mfa_url),
+        headers={
+            "Host": FS_AUTH_HOST,
+            "Referer": 'https://{}{}'.format(FS_AUTH_HOST, login_url),
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:65.0) Gecko/20100101 Firefox/65.0",
+        },
+        data={
+            'AuthMethod': 'AzureMfaAuthentication',
+            'Context': '{}'.format(context),
+            '__EVENTTARGET': '',
+            'SignIn': 'Sign+in',
+            'VerificationCode': verification_code,
+        },
+    )
+    soup = BeautifulSoup(r.text, 'html.parser')
+    error_field = soup.find('label', {'id': 'errorText'}) or soup.find('span', {'id': 'errorText'})
+    if error_field and error_field.text:
+        print(error_field.text)
+        print("=" * 80)
+        sys.exit(1)
     else:
-        print("Login failed")
-    sys.exit(1)    
+        # Code accepted
+        break
+
+vpn_form = soup.find("form", {'name': 'hiddenform'})
+if not vpn_form:
+    print("Login failed for unknown reason:")
+    print(soup)
+    print("=" * 80)
+    sys.exit(1)
+vpn_url = vpn_form.attrs['action']
 saml_response = vpn_form.find('input').attrs['value']
 
 r = s.post(
@@ -107,4 +177,5 @@ r = s.post(
     },
     verify=False,
 )
+print("Got VPN cookie:")
 print(s.cookies['webvpn'])
