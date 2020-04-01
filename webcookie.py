@@ -6,6 +6,7 @@ from pprint import pprint
 
 import requests
 from bs4 import BeautifulSoup
+from requests_ntlm import HttpNtlmAuth
 
 SAML_HOST = os.environ['SAML_HOST']
 if not SAML_HOST:
@@ -69,18 +70,44 @@ r = s.get(
         "Cache-Control": "no-cache",
     },
     verify=False,
+    allow_redirects=False,
 )
-soup = BeautifulSoup(r.text, 'html.parser')
-login_form = soup.find('form', id='loginForm')
-login_url = login_form.attrs['action']
+if r.status_code == 302:
+    # When the server detects an existing session, it prompts for
+    # confirmation of username and password using NTLM auth
+    print("Existing session found")
+    login_url = r.headers['Location']
+    r = s.get(
+        url=login_url,
+        headers={
+            "Host": "fs.auth.wfp.org",
+            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:74.0) Gecko/20100101 Firefox/74.0",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-GB,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Referer": "https://vpn.wfp.org/",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+        },
+        verify=False,
+        allow_redirects=False,
+        auth=HttpNtlmAuth(VPN_USERNAME, VPN_PASSWORD),
+    )
+else:
+    soup = BeautifulSoup(r.text, 'html.parser')
+    login_form = soup.find('form', id='loginForm')
+    if not login_form:
+        raise Exception("Failed to find #loginForm")
+    login_url = 'https://{}{}'.format(FS_AUTH_HOST, login_form.attrs['action'])
 
-r = s.post(
-    'https://{}{}'.format(FS_AUTH_HOST, login_url),
-    data={
-        'UserName': '{}'.format(VPN_USERNAME),
-        'Password': '{}'.format(VPN_PASSWORD),
-    },
-)
+    r = s.post(
+        login_url,
+        data={
+            'UserName': '{}'.format(VPN_USERNAME),
+            'Password': '{}'.format(VPN_PASSWORD),
+        },
+    )
 
 while True:
     soup = BeautifulSoup(r.text, 'html.parser')
@@ -94,14 +121,13 @@ while True:
         break
 
     mfa_form = soup.find('form', {'id': 'loginForm'})
-    mfa_url = login_url
     context = mfa_form.find('input', {'id': 'context'}).attrs['value']
     code_input = soup.find('input', {'id': 'verificationCodeInput'})
     if not code_input:
         print("Waiting for 2FA code prompt...")
         time.sleep(1)
         r = s.post(
-            'https://{}{}'.format(FS_AUTH_HOST, mfa_url),
+            login_url,
             data={
                 'AuthMethod': 'AzureMfaAuthentication',
                 'Context': '{}'.format(context),
@@ -109,16 +135,17 @@ while True:
             },
             verify=False,
             allow_redirects=False,
+            auth=HttpNtlmAuth(VPN_USERNAME, VPN_PASSWORD),
         )
         continue
 
     verification_code = input("Verification code: ")
 
     r = s.post(
-        'https://{}{}'.format(FS_AUTH_HOST, mfa_url),
+        login_url,
         headers={
             "Host": FS_AUTH_HOST,
-            "Referer": 'https://{}{}'.format(FS_AUTH_HOST, login_url),
+            "Referer": login_url,
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:65.0) Gecko/20100101 Firefox/65.0",
         },
         data={
@@ -128,6 +155,7 @@ while True:
             'SignIn': 'Sign+in',
             'VerificationCode': verification_code,
         },
+        auth=HttpNtlmAuth(VPN_USERNAME, VPN_PASSWORD),
     )
     soup = BeautifulSoup(r.text, 'html.parser')
     error_field = soup.find('label', {'id': 'errorText'}) or soup.find('span', {'id': 'errorText'})
