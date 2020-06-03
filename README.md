@@ -28,7 +28,7 @@ VPN_USERNAME=my.username@my.company
 
 ## Usage
 
-The `connect.sh` script will first as you for your VPN password, then your 2FA verification code, and finally it will ask you to `sudo` - do not be alarmed when it prompts you for these.
+The `connect.sh` script will first ask you for your VPN password, then your 2FA verification code, and finally it will ask you to `sudo` - do not be alarmed when it prompts you for these.
 
 Once connected, the `openconnect` command will remain running.
 
