@@ -45,6 +45,7 @@ Waiting for 2FA code prompt...
 Verification code: 999999
 Got VPN cookie:
 AAAAAAABBABABABAB@@AAAEXAMPLECOOKLIEPLEASEIGNORETHIOSVALYEHERE
+[sudo] password for ubuntu:
 Attempting to connect to server 111.111.111.11:443
 Connected to 111.111.111.11:443
 ...
