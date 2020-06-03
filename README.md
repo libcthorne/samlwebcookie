@@ -1,6 +1,6 @@
 # SAML Web Cookie VPN Connect
  
-### This utility allows you to authenticate using SAML and 2FA and then connect to your using openconnect at the command line on Linux.
+### This utility allows you to authenticate using SAML and 2FA and then connect to your VPN using OpenConnect at the command line on Linux.
 
 ## Setup
 
@@ -28,7 +28,7 @@ VPN_USERNAME=my.username@my.company
 
 ## Usage
 
-The `connect.sh` script will first as you for your VPN password, then your 2FA verification code, and finally it will ask you to sudo - do not be alarmed when it prompts you for these.
+The `connect.sh` script will first as you for your VPN password, then your 2FA verification code, and finally it will ask you to `sudo` - do not be alarmed when it prompts you for these.
 
 Once connected, the `openconnect` command will remain running.
 
@@ -50,4 +50,4 @@ Connected to 111.111.111.11:443
 ...
 ```
 
-To disconnect from the VPN, simply hit Ctrl+C to terminate the connect.sh script.
+To disconnect from the VPN, simply hit Ctrl+C to terminate the `connect.sh` script.
