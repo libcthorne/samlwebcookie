@@ -13,10 +13,12 @@ fi
 source "$envFile"
 
 # Read user's VPN password
-echo -n "Please enter your VPN password: "
-read -s VPN_PASSWORD
+if [ -z "$VPN_PASSWORD" ]; then
+  echo -n "Please enter your VPN password: "
+  read -s VPN_PASSWORD
+  echo ""
+fi
 
-echo ""
 echo "Running samlwebcookie"
 
 # Get the SAML cookie
@@ -27,5 +29,4 @@ VPN_COOKIE=$(
 )
 
 # Connect to the VPN
-sudo openconnect -v "$VPN_HOST" --cookie="$VPN_COOKIE"
-
+sudo openconnect $VPN_SERVER --cookie="$VPN_COOKIE"

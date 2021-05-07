@@ -9,4 +9,4 @@ ADD webcookie.py /samlwebcookie/webcookie.py
 
 RUN pip3 install -r /samlwebcookie/requirements.txt
 
-CMD python3 /samlwebcookie/webcookie.py
+CMD python3 /samlwebcookie/webcookie.py $VPN_SERVER --username $VPN_USERNAME --password $VPN_PASSWORD --output-file=/dev/null
